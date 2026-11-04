@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const marketTycoonBtn = document.getElementById('select-market-tycoon');
     const lavaBalanceBtn = document.getElementById('select-lava-balance');
     const cipherHeistBtn = document.getElementById('select-cipher-heist');
+    const mathDashBtn = document.getElementById('select-mathdash');
 
     numberForgeBtn.addEventListener('click', () => {
         window.location.href = 'number-forge.html';
@@ -18,5 +19,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     cipherHeistBtn.addEventListener('click', () => {
         window.location.href = 'cipher-heist.html';
+    });
+
+    mathDashBtn.addEventListener('click', () => {
+        window.location.href = 'mathdash.html';
     });
 });
