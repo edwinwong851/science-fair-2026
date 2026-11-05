@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Dash Level Editor</title>
+    <style>
+        :root { color-scheme: dark; font-family: Arial, sans-serif; background: #10131d; color: #f4f7ff; }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 20px; }
+        main { max-width: 1100px; margin: auto; }
+        h1 { margin: 0 0 8px; color: #00ffcc; }
+        p { color: #c3cada; }
+        .panel { background: #1b2030; border: 1px solid #39425a; border-radius: 12px; padding: 16px; margin: 14px 0; }
+        .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        input, select, button { font: inherit; border-radius: 7px; padding: 10px 12px; }
+        input, select { background: #10131d; color: #fff; border: 1px solid #59647e; }
+        input[type="text"] { flex: 1; min-width: 200px; }
+        button { border: 0; background: #00ffcc; color: #06120f; font-weight: 700; cursor: pointer; }
+        button.secondary { background: #3a4359; color: white; }
+        button.danger { background: #e94560; color: white; }
+        #tools { display: flex; flex-wrap: wrap; gap: 8px; }
+        #tools button { background: #31394d; color: white; border: 2px solid transparent; padding: 8px 10px; }
+        #tools button[aria-pressed="true"] { border-color: #00ffcc; background: #185b53; }
+        .canvas-wrap { overflow-x: auto; border: 1px solid #59647e; border-radius: 8px; background: #10131d; }
+        canvas { display: block; width: 1600px; height: 400px; touch-action: none; cursor: crosshair; }
+        .help { font-size: .92rem; }
+        #status { min-height: 1.4em; color: #00ffcc; }
+        a { color: #00ffcc; }
+        @media (max-width: 600px) { body { padding: 12px; } .panel { padding: 12px; } }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Math Dash Level Editor</h1>
+    <p>Choose a tool, then click or drag on the grid to build a level. Your levels are saved in this browser and will appear in Math Dash on this device.</p>
+
+    <section class="panel row" aria-label="Level settings">
+        <label for="saved-levels">Saved level:</label>
+        <select id="saved-levels"><option value="">New level</option></select>
+        <input id="level-name" type="text" maxlength="50" value="Custom Level" aria-label="Level name">
+        <button id="new-level" class="secondary" type="button">New</button>
+        <button id="save-level" type="button">Save level</button>
+        <button id="delete-level" class="danger" type="button">Delete</button>
+    </section>
+
+    <section class="panel">
+        <strong>Tools</strong>
+        <div id="tools" aria-label="Editor tools"></div>
+        <p class="help">Arrow keys or the horizontal scrollbar move around the level. The green line marks the finish. Place blocks along the bottom to make a floor. Erase removes a tile.</p>
+        <div class="canvas-wrap" id="canvas-wrap"><canvas id="editor" width="1600" height="400" aria-label="Math Dash level grid"></canvas></div>
+        <p id="status" role="status" aria-live="polite"></p>
+    </section>
+    <p><a href="./mathdash.html">Open Math Dash</a> · <a href="./game-select.html">Back to game selection</a></p>
+</main>
+<script>
+(() => {
+    'use strict';
+    const TILE = 40;
+    const ROWS = 10;
+    const COLS = 40;
+    const STORAGE_KEY = 'gd_custom_levels';
+    const tools = [
+        { name: 'Block', char: 'X', mark: '■', color: '#0f3460' },
+        { name: 'Spike', char: '^', mark: '▲', color: '#e94560' },
+        { name: 'Half spike', char: '.', mark: '◢', color: '#e94560' },
+        { name: 'Down spike', char: 'v', mark: '▼', color: '#e94560' },
+        { name: 'Orb', char: 'O', mark: '●', color: '#f1c40f' },
+        { name: 'Dash orb', char: 'D', mark: '◆', color: '#00ff00' },
+        { name: 'Jump pad', char: 'P', mark: '▰', color: '#f1c40f' },
+        { name: 'Ship portal', char: '>', mark: 'S', color: '#ff64c8' },
+        { name: 'UFO portal', char: 'U', mark: 'U', color: '#ffa500' },
+        { name: 'Wave portal', char: 'W', mark: 'W', color: '#00c8ff' },
+        { name: 'Ball portal', char: 'Q', mark: 'B', color: '#ff3200' },
+        { name: 'Cube portal', char: '<', mark: 'C', color: '#00ffaa' },
+        { name: 'Invert gravity', char: 'Y', mark: '↕', color: '#ffff00' },
+        { name: 'Normal gravity', char: 'B', mark: '↓', color: '#0066ff' },
+        { name: 'Coin', char: 'C', mark: '$', color: '#ffdd00' },
+        { name: 'Finish', char: '@', mark: '🏁', color: '#00ffcc' },
+        { name: 'Erase', char: ' ', mark: '⌫', color: '#aab4c8' }
+    ];
+    const canvas = document.getElementById('editor');
+    const ctx = canvas.getContext('2d');
+    const toolsEl = document.getElementById('tools');
+    const levelSelect = document.getElementById('saved-levels');
+    const nameInput = document.getElementById('level-name');
+    const status = document.getElementById('status');
+    let grid = createGrid();
+    let selectedTool = 0;
+    let isDrawing = false;
+    let levels = readLevels();
+    let selectedLevelId = '';
+
+    function createGrid() {
+        return Array.from({ length: ROWS }, () => Array(COLS).fill(' '));
+    }
+    function readLevels() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            return Array.isArray(parsed) ? parsed.filter(level => level && level.isUserCreated && Array.isArray(level.layout)) : [];
+        } catch (error) {
+            status.textContent = 'Could not read saved levels from this browser.';
+            return [];
+        }
+    }
+    function setTool(index) {
+        selectedTool = index;
+        [...toolsEl.children].forEach((button, i) => button.setAttribute('aria-pressed', String(i === index)));
+    }
+    tools.forEach((tool, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = `${tool.mark} ${tool.name}`;
+        button.title = `${tool.name} (${tool.char === ' ' ? 'erase' : tool.char})`;
+        button.setAttribute('aria-pressed', 'false');
+        button.addEventListener('click', () => setTool(index));
+        toolsEl.appendChild(button);
+    });
+    setTool(0);
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#111522';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        for (let row = 0; row < ROWS; row++) {
+            for (let col = 0; col < COLS; col++) {
+                const char = grid[row][col];
+                const x = col * TILE;
+                const y = row * TILE;
+                if (char !== ' ') {
+                    const tool = tools.find(item => item.char === char);
+                    if (char === 'X') {
+                        ctx.fillStyle = '#0f3460'; ctx.fillRect(x + 1, y + 1, TILE - 2, TILE - 2);
+                    } else if (char === '^' || char === '.' || char === 'v') {
+                        ctx.fillStyle = '#e94560'; ctx.beginPath();
+                        if (char === '^') { ctx.moveTo(x + TILE / 2, y + 4); ctx.lineTo(x + TILE - 4, y + TILE - 4); ctx.lineTo(x + 4, y + TILE - 4); }
+                        else if (char === 'v') { ctx.moveTo(x + 4, y + 4); ctx.lineTo(x + TILE - 4, y + 4); ctx.lineTo(x + TILE / 2, y + TILE - 4); }
+                        else { ctx.moveTo(x + TILE / 2, y + TILE / 2); ctx.lineTo(x + TILE - 4, y + TILE - 4); ctx.lineTo(x + 4, y + TILE - 4); }
+                        ctx.closePath(); ctx.fill();
+                    } else if (char === 'O' || char === 'D' || char === 'C') {
+                        ctx.fillStyle = tool ? tool.color : '#fff'; ctx.beginPath(); ctx.arc(x + TILE / 2, y + TILE / 2, 13, 0, Math.PI * 2); ctx.fill();
+                        ctx.fillStyle = '#111'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                        ctx.fillText(char === 'C' ? '$' : char, x + TILE / 2, y + TILE / 2);
+                    } else if (char === 'P') {
+                        ctx.fillStyle = '#f1c40f'; ctx.fillRect(x + 2, y + TILE - 12, TILE - 4, 10);
+                    } else if (char === '@') {
+                        ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x + TILE / 2, y); ctx.lineTo(x + TILE / 2, canvas.height); ctx.stroke();
+                    } else if (tool) {
+                        ctx.fillStyle = tool.color; ctx.fillRect(x + 4, y + 4, TILE - 8, TILE - 8);
+                        ctx.fillStyle = '#111'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(tool.mark, x + TILE / 2, y + TILE / 2);
+                    }
+                }
+                ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.lineWidth = 1; ctx.strokeRect(x, y, TILE, TILE);
+            }
+        }
+        ctx.fillStyle = '#fff'; ctx.font = '13px Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.fillText('START', 4, 4);
+        ctx.fillText('Use the scrollbar below to reach the far end →', 1600 - 275, 4);
+    }
+    function paintAt(event) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = Math.floor((event.clientX - rect.left) * scaleX / TILE);
+        const y = Math.floor((event.clientY - rect.top) * scaleY / TILE);
+        if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return;
+        // Keep only one finish marker so the game's level-end position is unambiguous.
+        if (tools[selectedTool].char === '@') {
+            grid = grid.map(row => row.map(char => char === '@' ? ' ' : char));
+        } else if (grid[y][x] === '@') {
+            grid[y][x] = ' ';
+        }
+        grid[y][x] = tools[selectedTool].char;
+        draw();
+    }
+    canvas.addEventListener('pointerdown', event => { isDrawing = true; canvas.setPointerCapture(event.pointerId); paintAt(event); });
+    canvas.addEventListener('pointermove', event => { if (isDrawing) paintAt(event); });
+    canvas.addEventListener('pointerup', () => { isDrawing = false; });
+    canvas.addEventListener('pointercancel', () => { isDrawing = false; });
+
+    function refreshLevelList() {
+        levelSelect.replaceChildren(new Option('New level', ''));
+        levels.forEach((level, index) => levelSelect.add(new Option(level.name || `Custom Level ${index + 1}`, String(index))));
+    }
+    function loadLevel(index) {
+        selectedLevelId = index === '' ? '' : String(index);
+        if (selectedLevelId === '') {
+            grid = createGrid(); nameInput.value = 'Custom Level';
+        } else {
+            const level = levels[Number(selectedLevelId)];
+            grid = createGrid();
+            (level.layout || []).slice(0, ROWS).forEach((line, row) => {
+                // Layouts use one-character parser tokens; ignore unknown content safely.
+                for (let col = 0; col < Math.min(COLS, line.length); col++) grid[row][col] = line[col];
+            });
+            nameInput.value = level.name || 'Custom Level';
+        }
+        draw();
+    }
+    levelSelect.addEventListener('change', () => loadLevel(levelSelect.value));
+    document.getElementById('new-level').addEventListener('click', () => {
+        levelSelect.value = ''; loadLevel(''); status.textContent = 'New level ready.';
+    });
+    document.getElementById('save-level').addEventListener('click', () => {
+        const name = nameInput.value.trim() || `Custom Level ${levels.length + 1}`;
+        const layout = grid.map(row => row.join('').replace(/\s+$/u, ''));
+        const level = { name, song: 'Custom Level', audioUrl: '', bgColor: '#1a1a2e', blockColor: '#0f3460', layout, isUserCreated: true };
+        const index = selectedLevelId === '' ? -1 : Number(selectedLevelId);
+        if (index >= 0 && levels[index]) levels[index] = level;
+        else { levels.push(level); selectedLevelId = String(levels.length - 1); }
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(levels));
+            refreshLevelList(); levelSelect.value = selectedLevelId;
+            status.textContent = `“${name}” saved. Open Math Dash and select Play → Play to test it.`;
+        } catch (error) {
+            status.textContent = 'Could not save this level. Check browser storage availability.';
+        }
+    });
+    document.getElementById('delete-level').addEventListener('click', () => {
+        if (selectedLevelId === '') { status.textContent = 'Select a saved custom level first.'; return; }
+        levels.splice(Number(selectedLevelId), 1);
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(levels));
+            refreshLevelList(); loadLevel(''); status.textContent = 'Level deleted.';
+        } catch (error) { status.textContent = 'Could not update browser storage.'; }
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'ArrowRight') document.getElementById('canvas-wrap').scrollLeft += TILE;
+        if (event.key === 'ArrowLeft') document.getElementById('canvas-wrap').scrollLeft -= TILE;
+    });
+    refreshLevelList(); draw();
+})();
+</script>
+</body>
+</html>
