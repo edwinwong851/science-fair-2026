@@ -124,11 +124,11 @@
                             "                                          XXXXXXXXXXXXX                                                                                                                                                                                                                                                                         ",
                             "                                          XXXXXXvXXXXXX                                                                                                                                                                                                  ",
                             "                                          XXXOX, ,XOXXX                                                                                                                                                                                                                                                                         ",
-                            "                                          XXXXv ^ vXXXX                                                                                                                                                                                                                                                                       ",
+                            "                                          XXXXv   vXXXX                                                                                                                                                                                                                                                                       ",
                             "                                          XXXv ^X^ vXXX                                                                                                                            ",
                             "                                          XXv ^XXX^ vXX                                             ",
-                            "                                 W        Xv ^XXXXX^ vX                              ",
-                            "                                            ^XXXXXXX^                                   "
+                            "                                 W        Xv  XXXXX  vX                              ",
+                            "                                             XXXXXXX                                    "
                         ]
                     },
                     ]
@@ -159,7 +159,7 @@
             { id: 'creator', name: "Creator Cube", color: "#ffffff", icon: "robot", shipIndex: 4, conditionText: "Open the Level Editor" },
             { id: 'shop_1', name: "Neon Cube", color: "#00ff00", icon: "robot", shipIndex: 5, conditionText: "Buy in The Shop", cost: 500 },
             { id: 'shop_2', name: "Magma Cube", color: "#ff4400", icon: "angry", shipIndex: 6, conditionText: "Buy in The Shop", cost: 1000 },
-            { id: 'shop_3', name: "Shadow Cube", color: "#333333", icon: "ninja", shipIndex: 7, conditionText: "Buy in The Shop", cost: 2500 }
+            { id: 'shop_3', name: "Shadow Cube", color: "#333333", icon: "ninja", shipIndex: 7, conditionText: "Buy in The Shop", cost: 2000 }
         ];
         let unlockedSkins = JSON.parse(localStorage.getItem("gd_unlocked_skins")) || ['default'];
         let equippedSkin = localStorage.getItem("gd_equipped_skin") || 'default';
@@ -633,7 +633,7 @@
         // --- INPUT HANDLING ---
         function jump() {
             if (gameState === "COMPLETE" || gameState === "ALL_CLEAR") {
-                returnToMenu();
+                return; // Let the completion screen's timer return to the menu.
             } else if (gameState === "PLAYING") {
                 // Check if we are currently intersecting an un-hit orb
                 let hitOrb = false;
@@ -1399,7 +1399,7 @@
             if (player.x > levelEnd) {
     gameState = "COMPLETE";
     bgMusic.pause();
-    setTimeout(returnToMenu, 100);
+    setTimeout(returnToMenu, 1500);
 }
             
             // Screen Bounds (Floor & Ceiling)
