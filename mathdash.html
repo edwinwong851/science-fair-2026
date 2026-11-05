@@ -1397,9 +1397,10 @@
 
             // Check Level End
             if (player.x > levelEnd) {
-                gameState = "COMPLETE";
-                bgMusic.pause();
-            }
+    gameState = "COMPLETE";
+    bgMusic.pause();
+    setTimeout(returnToMenu, 1200);
+}
             
             // Screen Bounds (Floor & Ceiling)
             if (player.gravity === 1) {
