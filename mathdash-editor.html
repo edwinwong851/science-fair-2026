@@ -23,7 +23,7 @@
         #tools button { background: #31394d; color: white; border: 2px solid transparent; padding: 8px 10px; }
         #tools button[aria-pressed="true"] { border-color: #00ffcc; background: #185b53; }
         .canvas-wrap { overflow-x: auto; border: 1px solid #59647e; border-radius: 8px; background: #10131d; }
-        canvas { display: block; width: 1600px; height: 400px; touch-action: none; cursor: crosshair; }
+        canvas { display: block; width: 3200px; height: 400px; touch-action: none; cursor: crosshair; }
         .help { font-size: .92rem; }
         #status { min-height: 1.4em; color: #00ffcc; }
         a { color: #00ffcc; }
@@ -33,7 +33,7 @@
 <body>
 <main>
     <h1>Math Dash Level Editor</h1>
-    <p>Choose a tool, then click or drag on the grid to build a level. Your levels are saved in this browser and will appear in Math Dash on this device.</p>
+    <p>Choose a tool, then click or drag on the grid to build a level. The level extends as you build, up to 400 columns. Your levels are saved in this browser and will appear in Math Dash on this device.</p>
 
     <section class="panel row" aria-label="Level settings">
         <label for="saved-levels">Saved level:</label>
@@ -47,8 +47,8 @@
     <section class="panel">
         <strong>Tools</strong>
         <div id="tools" aria-label="Editor tools"></div>
-        <p class="help">Arrow keys or the horizontal scrollbar move around the level. The green line marks the finish. Place blocks along the bottom to make a floor. Erase removes a tile.</p>
-        <div class="canvas-wrap" id="canvas-wrap"><canvas id="editor" width="1600" height="400" aria-label="Math Dash level grid"></canvas></div>
+        <p class="help">Use the horizontal scrollbar or Left/Right arrow keys to move around. The editor expands as you build, up to 400 columns (about 16,000 game pixels). The green line marks the finish. Place blocks along the bottom to make a floor. Erase removes a tile.</p>
+        <div class="canvas-wrap" id="canvas-wrap"><canvas id="editor" width="3200" height="400" aria-label="Math Dash level grid"></canvas></div>
         <p id="status" role="status" aria-live="polite"></p>
     </section>
     <p><a href="./mathdash.html">Open Math Dash</a> · <a href="./game-select.html">Back to game selection</a></p>
@@ -58,7 +58,9 @@
     'use strict';
     const TILE = 40;
     const ROWS = 10;
-    const COLS = 40;
+    const INITIAL_COLS = 80;
+    const COLS_PER_EXTENSION = 40;
+    const MAX_COLS = 400;
     const STORAGE_KEY = 'gd_custom_levels';
     const tools = [
         { name: 'Block', char: 'X', mark: '■', color: '#0f3460' },
@@ -81,18 +83,20 @@
     ];
     const canvas = document.getElementById('editor');
     const ctx = canvas.getContext('2d');
+    const canvasWrap = document.getElementById('canvas-wrap');
     const toolsEl = document.getElementById('tools');
     const levelSelect = document.getElementById('saved-levels');
     const nameInput = document.getElementById('level-name');
     const status = document.getElementById('status');
-    let grid = createGrid();
+    let cols = INITIAL_COLS;
+    let grid = createGrid(cols);
     let selectedTool = 0;
     let isDrawing = false;
     let levels = readLevels();
     let selectedLevelId = '';
 
-    function createGrid() {
-        return Array.from({ length: ROWS }, () => Array(COLS).fill(' '));
+    function createGrid(width) {
+        return Array.from({ length: ROWS }, () => Array(width).fill(' '));
     }
     function readLevels() {
         try {
@@ -102,6 +106,17 @@
             status.textContent = 'Could not read saved levels from this browser.';
             return [];
         }
+    }
+    function resizeCanvas() {
+        canvas.width = cols * TILE;
+        canvas.style.width = `${cols * TILE}px`;
+    }
+    function setColumns(width) {
+        const nextCols = Math.min(MAX_COLS, Math.max(INITIAL_COLS, Math.ceil(width / COLS_PER_EXTENSION) * COLS_PER_EXTENSION));
+        if (nextCols === cols) return;
+        for (const row of grid) while (row.length < nextCols) row.push(' ');
+        cols = nextCols;
+        resizeCanvas();
     }
     function setTool(index) {
         selectedTool = index;
@@ -123,7 +138,7 @@
         ctx.fillStyle = '#111522';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         for (let row = 0; row < ROWS; row++) {
-            for (let col = 0; col < COLS; col++) {
+            for (let col = 0; col < cols; col++) {
                 const char = grid[row][col];
                 const x = col * TILE;
                 const y = row * TILE;
@@ -155,7 +170,7 @@
         }
         ctx.fillStyle = '#fff'; ctx.font = '13px Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
         ctx.fillText('START', 4, 4);
-        ctx.fillText('Use the scrollbar below to reach the far end →', 1600 - 275, 4);
+        ctx.fillText('Use the scrollbar below to reach the far end →', Math.max(4, canvas.width - 275), 4);
     }
     function paintAt(event) {
         const rect = canvas.getBoundingClientRect();
@@ -163,7 +178,8 @@
         const scaleY = canvas.height / rect.height;
         const x = Math.floor((event.clientX - rect.left) * scaleX / TILE);
         const y = Math.floor((event.clientY - rect.top) * scaleY / TILE);
-        if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return;
+        if (x < 0 || y < 0 || y >= ROWS || x >= MAX_COLS) return;
+        if (x >= cols - 1 && cols < MAX_COLS) setColumns(Math.min(MAX_COLS, cols + COLS_PER_EXTENSION));
         // Keep only one finish marker so the game's level-end position is unambiguous.
         if (tools[selectedTool].char === '@') {
             grid = grid.map(row => row.map(char => char === '@' ? ' ' : char));
@@ -185,16 +201,22 @@
     function loadLevel(index) {
         selectedLevelId = index === '' ? '' : String(index);
         if (selectedLevelId === '') {
-            grid = createGrid(); nameInput.value = 'Custom Level';
+            cols = INITIAL_COLS;
+            grid = createGrid(cols);
+            nameInput.value = 'Custom Level';
         } else {
             const level = levels[Number(selectedLevelId)];
-            grid = createGrid();
-            (level.layout || []).slice(0, ROWS).forEach((line, row) => {
-                // Layouts use one-character parser tokens; ignore unknown content safely.
-                for (let col = 0; col < Math.min(COLS, line.length); col++) grid[row][col] = line[col];
+            const sourceLayout = Array.isArray(level.layout) ? level.layout : [];
+            const maxLineLength = sourceLayout.reduce((longest, line) => Math.max(longest, typeof line === 'string' ? line.length : 0), 0);
+            cols = Math.min(MAX_COLS, Math.max(INITIAL_COLS, Math.ceil(maxLineLength / COLS_PER_EXTENSION) * COLS_PER_EXTENSION));
+            grid = createGrid(cols);
+            sourceLayout.slice(0, ROWS).forEach((line, row) => {
+                if (typeof line !== 'string') return;
+                for (let col = 0; col < Math.min(cols, line.length); col++) grid[row][col] = line[col];
             });
             nameInput.value = level.name || 'Custom Level';
         }
+        resizeCanvas();
         draw();
     }
     levelSelect.addEventListener('change', () => loadLevel(levelSelect.value));
@@ -225,10 +247,12 @@
         } catch (error) { status.textContent = 'Could not update browser storage.'; }
     });
     document.addEventListener('keydown', event => {
-        if (event.key === 'ArrowRight') document.getElementById('canvas-wrap').scrollLeft += TILE;
-        if (event.key === 'ArrowLeft') document.getElementById('canvas-wrap').scrollLeft -= TILE;
+        if (event.key === 'ArrowRight') canvasWrap.scrollLeft += TILE;
+        if (event.key === 'ArrowLeft') canvasWrap.scrollLeft -= TILE;
     });
-    refreshLevelList(); draw();
+    resizeCanvas();
+    refreshLevelList();
+    draw();
 })();
 </script>
 </body>
