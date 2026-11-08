@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Dash Shop</title>
+    <style>
+        :root { color-scheme: dark; font-family: Arial, sans-serif; background: #10131d; color: #f4f7ff; }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 24px; }
+        main { max-width: 900px; margin: auto; }
+        h1 { color: #00ffcc; }
+        .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+        #balance { color: #00ffff; font-size: 1.2rem; font-weight: bold; }
+        #skins { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
+        .skin { background: #1b2030; border: 1px solid #39425a; border-radius: 12px; padding: 18px; text-align: center; }
+        .preview { width: 64px; height: 64px; margin: 0 auto 12px; border: 3px solid white; border-radius: 10px; box-shadow: 0 0 16px currentColor; }
+        button, a { display: inline-block; border: 0; border-radius: 7px; padding: 10px 14px; font: inherit; font-weight: bold; cursor: pointer; text-decoration: none; }
+        button { background: #00ffcc; color: #071411; }
+        button:disabled { background: #4a5060; color: #d3d8e2; cursor: default; }
+        a { color: #fff; background: #39425a; }
+        #message { min-height: 1.4em; color: #00ffcc; }
+    </style>
+</head>
+<body>
+<main>
+    <div class="top">
+        <div><h1>Math Dash Shop</h1><p>Spend Orbs on new cube skins. Purchases are saved in this browser.</p></div>
+        <div id="balance" aria-live="polite"></div>
+    </div>
+    <div id="skins"></div>
+    <p id="message" role="status" aria-live="polite"></p>
+    <p><a href="./mathdash.html">Back to Math Dash</a> <a href="./game-select.html">Game selection</a></p>
+</main>
+<script>
+(() => {
+    const catalog = [
+        { id: 'shop_1', name: 'Neon Cube', color: '#00ff00', cost: 500, icon: 'robot' },
+        { id: 'shop_2', name: 'Magma Cube', color: '#ff4400', cost: 1000, icon: 'angry' },
+        { id: 'shop_3', name: 'Shadow Cube', color: '#333333', cost: 2000, icon: 'ninja' }
+    ];
+    const skinsRoot = document.getElementById('skins');
+    const balance = document.getElementById('balance');
+    const message = document.getElementById('message');
+    function readUnlocked() {
+        try {
+            const value = JSON.parse(localStorage.getItem('gd_unlocked_skins') || '["default"]');
+            return Array.isArray(value) ? value : ['default'];
+        } catch { return ['default']; }
+    }
+    function readOrbs() {
+        const value = Number.parseInt(localStorage.getItem('gd_orbs') || '0', 10);
+        return Number.isFinite(value) ? value : 0;
+    }
+    function render() {
+        const orbs = readOrbs();
+        const unlocked = readUnlocked();
+        const equipped = localStorage.getItem('gd_equipped_skin') || 'default';
+        balance.textContent = `Orbs: ${orbs}`;
+        skinsRoot.replaceChildren();
+        catalog.forEach(skin => {
+            const owned = unlocked.includes(skin.id);
+            const card = document.createElement('section');
+            card.className = 'skin';
+            const preview = document.createElement('div');
+            preview.className = 'preview';
+            preview.style.backgroundColor = skin.color;
+            preview.style.color = skin.color;
+            const title = document.createElement('h2');
+            title.textContent = skin.name;
+            const price = document.createElement('p');
+            price.textContent = owned ? (equipped === skin.id ? 'Currently equipped' : 'Owned') : `Cost: ${skin.cost} Orbs`;
+            const action = document.createElement('button');
+            action.textContent = owned ? (equipped === skin.id ? 'Equipped' : 'Equip') : (orbs >= skin.cost ? 'Buy' : 'Not enough Orbs');
+            action.disabled = equipped === skin.id || (!owned && orbs < skin.cost);
+            action.addEventListener('click', () => {
+                const currentUnlocked = readUnlocked();
+                let currentOrbs = readOrbs();
+                if (!currentUnlocked.includes(skin.id)) {
+                    if (currentOrbs < skin.cost) return;
+                    currentOrbs -= skin.cost;
+                    currentUnlocked.push(skin.id);
+                    localStorage.setItem('gd_orbs', String(currentOrbs));
+                    localStorage.setItem('gd_unlocked_skins', JSON.stringify(currentUnlocked));
+                }
+                localStorage.setItem('gd_equipped_skin', skin.id);
+                message.textContent = `${skin.name} is equipped.`;
+                render();
+            });
+            card.append(preview, title, price, action);
+            skinsRoot.appendChild(card);
+        });
+    }
+    render();
+})();
+</script>
+</body>
+</html>

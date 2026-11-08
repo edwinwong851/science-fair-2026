@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cipherHeistBtn = document.getElementById('select-cipher-heist');
     const mathDashBtn = document.getElementById('select-mathdash');
     const mathDashEditorBtn = document.getElementById('select-mathdash-editor');
+    const mathDashShopBtn = document.getElementById('select-mathdash-shop');
 
     numberForgeBtn.addEventListener('click', () => {
         window.location.href = 'number-forge.html';
@@ -28,5 +29,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     mathDashEditorBtn.addEventListener('click', () => {
         window.location.href = 'mathdash-editor.html';
+    });
+
+    mathDashShopBtn.addEventListener('click', () => {
+        window.location.href = 'mathdash-shop.html';
     });
 });
